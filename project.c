@@ -14,7 +14,15 @@
 #include<error.h>
 
 
-struct usr_data               //用户数据
+//====================LCD图片
+char static bmp_24_0[] = "./image/meun/welcome.bmp";                   //欢迎界面
+char static bmp_24_1[] = "./image/meun/mian_meun.bmp";                 //系统主界面
+char static bmp_24_2[] = "./image/meun/usr_login_meun.bmp";            //登陆界面
+char static bmp_24_3[] = "./image/meun/regin_meun.bmp";                //注册界面
+char static bmp_24_4[] = "./image/meun/usr_per_main_meun.bmp";         //用户个人主界面
+
+
+struct usr_data                    //用户数据
 {  
     char name[10];            //姓名 
     char passwd[20];          //密码
@@ -26,7 +34,19 @@ struct usr_data               //用户数据
     int Vip;                  //是否是VIP    
 };
 
-typedef struct Regin_usr          //注册链
+struct flight_data                 //飞机基本信息
+{
+	char number[10];        //航班号
+	char staddress[10];     //起点站
+	char arraddress[15];    //终点站
+	char date[15];          //班期
+	char type[1];              //机型
+	char stime[10];         //起飞时间
+	unsigned int  price;    //票价
+	int poll;	            //余票
+};
+
+typedef struct Regin_usr           //注册链
 {
 	struct usr_data std;          //注册用户的信息
 
@@ -42,6 +62,14 @@ typedef struct login_list          //登陆链
 	struct login_list *next;
 }login;
 
+typedef struct flight_list         //机票链
+{
+	struct flight_data info;        //机票信息
+
+	struct flight_list *prev;       //前驱指针
+	struct flight_list *next;      //后继指针
+}flight;
+//====================================bmp===============================================//
 int show_all_lcd_bmp(char *bmp_path)                      //全屏显示一张24位bmp格式图片
 {
     FILE *fp;                        //打开bmp为文件指针
@@ -98,13 +126,74 @@ int show_all_lcd_bmp(char *bmp_path)                      //全屏显示一张24
     return 0;
 }
 
-void wel_interface()                                      //欢迎界面
+int Set_Pos_bmpsize(const char *bmp_path,int set_pos_x,int set_pos_y,int bmp_x,int bmp_y)     //在任意位置显示任意大小24位bmp图片
 {
-	show_all_lcd_bmp("./image/meun/welcome.bmp");
+    FILE *fp = NULL;
+    int lcd,n,k=0;
+    int x_max = (set_pos_x + bmp_x) * 4;
+    int y_max = (set_pos_y + bmp_y);
+    char *bmpmem = NULL;
+    char read_bmp_buff[bmp_x * bmp_y *3];
+    char check_bmp_buff[bmp_x * bmp_y * 4];
+    char show_buf[bmp_x * bmp_y *4];
+    //1.if set postion more than screem retrn -1;
+    if((set_pos_x + bmp_x) > 800 || (set_pos_y + bmp_y) > 480)
+    {
+        printf("Bmp too large\n");
+        return -1;
+    }
+
+    fp = fopen(bmp_path,"r");              //open bmp 
+    if(fp == NULL)
+        printf("open bmp error\n");
+    lcd = open("/dev/fb0",O_RDWR); 
+    if(lcd == -1)
+        printf("open dev fb0 error\n");
+
+    fseek(fp,54,SEEK_SET);                   //seek RGB head
+
+    n = fread(read_bmp_buff,bmp_x * bmp_y,3,fp);
+    if(n != 3)
+        printf("fread bmp error\n");
+    for(int i = 0,j = 0;i < bmp_x * bmp_y * 3;j +=4,i +=3)              //check bmp 
+    {
+        check_bmp_buff[j] = read_bmp_buff[i];
+        check_bmp_buff[j + 1] = read_bmp_buff[i + 1];
+        check_bmp_buff[j + 2] = read_bmp_buff[i + 2];
+        check_bmp_buff[j + 3] = 0;
+    }
+    for(int y=0;y<bmp_y;y++)
+    {
+        for(int x=0;x<bmp_x*4;x++)
+        {
+            show_buf[bmp_x*4*y+x] = check_bmp_buff[bmp_x*4*(bmp_y-1-y)+x];
+        }
+    }
+    bmpmem = (char*)mmap(NULL,800*480*4,PROT_READ|PROT_WRITE,MAP_SHARED,lcd,0);
+    if(bmpmem == NULL)
+        printf("mmap error!\n");
+    
+    //9.将show_buf的内容刷到内存上
+    for(int y = set_pos_y;y < y_max;y++)
+    {
+        for(int x=set_pos_x*4;x<x_max;x++)
+        {
+            memcpy(bmpmem+800*4*y+x,&show_buf[k],1);
+            k++;
+        }
+    }
+    munmap(bmpmem,800*480*4);
+    fclose(fp);
+    close(lcd);
+}
+//========================================================
+void wel_interface()                                                                          //欢迎界面
+{
+	show_all_lcd_bmp(bmp_24_0);
 	sleep(3);
 }
-
-regin *init_regin_list(regin *r_head)                           //初始化注册头结点
+//=====================================init===============================
+regin *init_regin_list(regin *r_head)                                                         //初始化注册头结点
 {
 	r_head = (regin *)malloc(sizeof(regin));              //位头节点申请空间
 	if(r_head == NULL)
@@ -117,7 +206,7 @@ regin *init_regin_list(regin *r_head)                           //初始化注�
 	return r_head;	
 }
 
-login *init_login_list(login *l_head)                          //初始化登陆的头结点
+login *init_login_list(login *l_head)                                                          //初始化登陆的头结点
 {
 	l_head = (login *)malloc(sizeof(login));
 	if(l_head == NULL)
@@ -129,7 +218,22 @@ login *init_login_list(login *l_head)                          //初始化登陆
 	return l_head;
 }
 
-int save_usr_data_file(regin *new_usr)                                     //保存用户注册的数据到文件
+flight *init_flight_list(flight *f_head)
+{
+	f_head = (flight *)malloc(sizeof(flight));
+	if(f_head == NULL)
+	{
+		perror("malloc f_head");
+		exit(0);
+	}
+	//指针域赋值
+	f_head->prev = f_head;
+	f_head->next = f_head;
+
+	return f_head;
+}
+
+int save_usr_data_file(regin *new_usr)                                                          //保存用户注册的数据到文件
 {
 	int n = 0;
 	FILE *fp = NULL;
@@ -156,7 +260,7 @@ int save_usr_data_file(regin *new_usr)                                     //保
 	return 0;
 }
 
-int regin_new_usr(regin *r_head)                                   //注册                     
+int regin_new_usr(regin *r_head)                                                               //注册                     
 {
 	char regin_name_buff[10] = {0};
 	char regin_passwd[20] = {0};
@@ -210,7 +314,7 @@ int regin_new_usr(regin *r_head)                                   //注册
 	return 0;
 }
 
-int read_usr_info(regin *r_head,char *file_name)                  //读取已注册用户的信息
+int read_usr_info(regin *r_head,char *file_name)                                               //读取已注册用户的信息
 {
 	FILE *fp = NULL;
 	char taken[] = ",";
@@ -264,7 +368,7 @@ int read_usr_info(regin *r_head,char *file_name)                  //读取已注
 
 }
 
-int init_old_usr_data(regin *r_head)                          //初始化注册过的用户
+int init_old_usr_data(regin *r_head)                                                           //初始化注册过的用户
 {
 	int ret;
 	DIR *dp = NULL;
@@ -293,77 +397,137 @@ int init_old_usr_data(regin *r_head)                          //初始化注册�
 
 	return 0;
 }
-//================================================
-int check_login_status(regin *check_reg,login *l_head,char *login_name_buff,int fd)               //检查用户的登陆状态
+
+int read_flight_data_buff(flight *f_head,char *file_name)                    
 {
-	printf("aaaa\n");
-	char login_passwd_buff[20];
-	login *check = l_head->next;
-	for(;check != l_head;check = check->next)                 //检查是否在登陆链上
+	FILE *fp;
+	int n;
+	char taken[] = ",";
+	char *buff;
+	char flight_data_buff[100] = {0};      //飞机的数据
+	fp = fopen(file_name,"r");
+	if(fp == NULL)
 	{
-		if(strcmp(l_head->l_std.name,login_name_buff) == 0)      //在登陆链上
-		{
-			//per_main_meun(r_head,l_head,fd);           //进入用户界面
-			printf("yonghujiemian\n");
-			return 0;
-		}
+		perror("fopen flight_data");
+		exit(0);
 	}
-	printf("请输入密码：");
-	scanf("%s",login_passwd_buff);
-	if(strcmp(check_reg->std.passwd,login_passwd_buff) == 0)
+	n = fread(flight_data_buff,sizeof(flight_data_buff),1,fp);
+	if(n < 0)
 	{
-		//密码正确
-		login *usr_login = NULL;                       
-		usr_login = (login *)malloc(sizeof(login));        
-		if(usr_login == NULL)
-			perror("malloc usr_login");
+		perror("fread flight_data");
+		exit(0);
+	}
+	flight *flight_data = NULL;
+	flight_data = (flight *)malloc(sizeof(flight));
+	if(flight_data == NULL)
+	{
+		perror("malloc flight_data");
+		exit(0);
+	}
+	//为数值域赋值
+	buff = strtok(flight_data_buff,taken);
+	strcpy(flight_data->info.number,buff);       //航班号
 
-		(usr_login->l_std) = (check_reg->std);     //将用户的数据加载到登陆链上    
-		usr_login->next = l_head;
-		login *p = l_head->prev;
+	buff =  strtok(NULL,taken);
+	strcpy(flight_data->info.staddress,buff);       //出发地
 
-		p->next = usr_login;
-		usr_login->prev = p;
-		l_head->prev = usr_login;              //完成链表
-		//per_main_meun(r_head,l_head,fd);       //进入的个人界面
-		printf("bbbbbbbbbs\n");
-		return 0;
-	}
-	else
-	{
-		printf("密码错误\n");
-		return 0;
-	}
-}
+	buff =  strtok(NULL,taken);
+	strcpy(flight_data->info.arraddress,buff);       //目的地
 
-int usr_login_fun(regin *r_head,login *l_head,int fd)               //检查用户的注册状态
-{
-	char login_name_buff[10];
-	printf("请输入用户名:");
-	scanf("%s",login_name_buff);
-	regin *check_reg = r_head->next;                      //检查是否注册
-	for(;check_reg != r_head;check_reg = check_reg->next)
-	{
-		if(strcmp(check_reg->std.name,login_name_buff) == 0)  //注册过
-		{
-			check_login_status(check_reg,l_head,login_name_buff,fd);   
-		}
-		else
-		{
-			printf("您还没有注册过\n");
-			return -1;
-		}
-	}
+	buff =  strtok(NULL,taken);
+	strcpy(flight_data->info.date,buff);       //班期
+
+	buff =  strtok(NULL,taken);
+	strcpy(flight_data->info.type,buff);       //机型
+
+	buff =  strtok(NULL,taken);
+	strcpy(flight_data->info.stime,buff);       //出发时间
+
+	buff =  strtok(NULL,taken);
+	flight_data->info.price = atoi(buff);             //价格
+
+	buff =  strtok(NULL,taken);
+	flight_data->info.poll =  atoi(buff);             //余票
+
+	flight_data->next = f_head;
+	//指针域赋值
+	flight *p = f_head->prev;
+
+	p->next = flight_data;
+	flight_data->prev =  p;
+	f_head->prev = flight_data;
+
 	return 0;
 }
 
-int usr_login_main_meun(regin *r_head,login *l_head,int fd)
-{	
+int init_flight_data(flight *f_head)                                                            //初始化飞机数据
+{
+	int ret;
+	DIR *dp;
+	dp = opendir("./data/flight_data");
+	if(dp == NULL)
+	{
+		perror("opendir flight_data");
+		exit(0);
+	}
+	ret = chdir("./data/flight_data");
+	if(ret == -1)
+	{
+		perror("chdir flight_data");
+		exit(0);
+	}
+	struct dirent *flight_data_buff = NULL;
+	while(1)
+	{
+		flight_data_buff = readdir(dp);
+		if(flight_data_buff == NULL)              //没有文件
+			break;
+		if(flight_data_buff->d_name[0] == '.')    //隐藏文件
+		{
+			continue;
+		}
+		read_flight_data_buff(f_head,flight_data_buff->d_name);     //文件名
+	}
+	ret = chdir("./../.."); //切换路径回到当前目录
+	if(ret == -1)
+		perror("chdir");
+	closedir(dp);
+	return 0;
+}
+//================================================用户界面
+int deleta_login_status(regin *usr_per,login *l_head)                                          //退出登陆直接清楚登陆节点
+{
+	login *q = l_head;
+	login *p = l_head->next;
+	for(q,p;p != l_head;q = p,p = p->next)
+	{
+		if(strcmp(usr_per->std.name,p->l_std.name) == 0)         //找到节点
+		{
+			q->next = p->next;
+			p->next->prev = q;
+			free(p);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int show_all_flight_data(flight *f_head)
+{
+	flight *p = f_head->next;
+	for(;p != f_head;p = p ->next)
+	{
+		printf("%s\n",p->info.number);
+	}
+	return	0;
+}
+int per_main_meun(regin *usr_per,login *l_head,flight *f_head,int fd)                                          //个人主界面
+{
+	int x,y;
 	struct input_event buff;
-    int x,y;
     while(1)
     {
-        show_all_lcd_bmp("./image/meun/test.bmp");    //显示用户登陆系统主界面的图片
+        show_all_lcd_bmp(bmp_24_4);    //显示用户个人主界面的图片
         bzero(&buff,sizeof(buff));
 		read(fd,&buff,sizeof(buff));
 		if(buff.type == EV_ABS && buff.code == ABS_X)
@@ -374,23 +538,165 @@ int usr_login_main_meun(regin *r_head,login *l_head,int fd)
         {
             y = buff.value;
         }
-        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0) //购票接口、个人用户、退出...
         {
-        	if(x < 512)
+        	if(x < 512 && y < 300)
         	{
-				usr_login_fun(r_head,l_head,fd);         //检查登陆状态
+        		show_all_flight_data(f_head);
         	}
-        	if(x > 512)
+        	if(x > 512 && y < 300)
         	{
+        		printf("person info\n");
+        	}
+        	if(x < 512 && y > 300)
+        	{
+        		printf("retrun last option\n");
+        		break;
+        	}
+        	if(x > 512 && y > 300)
+        	{
+        		printf("logout\n");
+        		deleta_login_status(usr_per,l_head);
         		break;
         	}
         }
     }
-	
+}
+//================================================登陆
+int check_login_status(regin *usr_per,login *l_head,char *login_name_buff,flight *f_head,int fd)               //检查用户的登陆状态
+{
+	char login_passwd_buff[20];
+	login *check = l_head->next;
+	for(;check != l_head;check = check->next)                 //检查是否在登陆链上
+	{
+		if(strcmp(check->l_std.name,login_name_buff) == 0)      //在登陆链上,免密码登陆
+		{
+			per_main_meun(usr_per,l_head,f_head,fd);           //进入用户界面
+			return 0;
+		}
+	}
+	printf("请输入密码：");
+	scanf("%s",login_passwd_buff);
+	if(strcmp(usr_per->std.passwd,login_passwd_buff) == 0)    
+	{
+		//密码正确
+		login *usr_login = NULL;                       
+		usr_login = (login *)malloc(sizeof(login));        
+		if(usr_login == NULL)
+			perror("malloc usr_login");
 
+		(usr_login->l_std) = (usr_per->std);     //将用户的数据加载到登陆链上    
+		usr_login->next = l_head;
+		login *p = l_head->prev;
+
+		p->next = usr_login;
+		usr_login->prev = p;
+		l_head->prev = usr_login;              //完成链表
+		per_main_meun(usr_per,l_head,f_head,fd);       //进入的个人界面
+		return 0;
+	}
+	else
+	{
+		printf("密码错误\n");
+		return 0;
+	}
 }
 
-int system_main_meun(regin *r_head,login *l_head)                                //购票系统的主界面
+int usr_login_fun(regin *r_head,login *l_head,flight *f_head,int fd)                                          //检查用户的注册状态
+{
+	char login_name_buff[10];
+	printf("请输入用户名:");
+	scanf("%s",login_name_buff);
+	regin *check_reg = r_head->next;                      //检查是否注册
+	for(;check_reg != r_head;check_reg = check_reg->next)
+	{
+		if(strcmp(check_reg->std.name,login_name_buff) == 0)  //注册过
+		{
+			check_login_status(check_reg,l_head,login_name_buff,f_head,fd);   
+		}
+		else
+		{
+			printf("您还没有注册过\n");
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int usr_regin_meun(regin *r_head,int fd)
+{
+	int x,y;
+	struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_3);    //显示用户注册界面
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0) //用户名、密码、确认密码、电话号码
+        {
+        	if(y < 300)
+        	{
+        		regin_new_usr(r_head);          //注册
+        	}
+        	if( y > 300)
+        	{
+        		break;                         //返回上一级，取消注册
+        	}
+        }
+    }
+    return 0;
+}
+
+int usr_login_main_meun(regin *r_head,login *l_head,flight *f_head,int fd)                                   //用户登陆界面
+{	
+    int x,y;
+    struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_2);    //显示用户登陆系统主界面的图片
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)  //需要做登陆、注册、找回密码、返回上一级接口
+        {
+        	if(y <120)
+        	{
+        		usr_regin_meun(r_head,fd);
+        	}
+        	if(y > 120 && y < 240)
+        	{
+        		usr_login_fun(r_head,l_head,f_head,fd);             //可以字符可以先加入缓冲区直接验证
+        	}
+        	if(y > 240 && y < 360)
+        	{
+        		printf("找回密码\n");
+        	}
+        	if(y > 360)
+        	{
+        		break;                 //返回上一级
+        	}
+
+        }
+    }
+    return 0;
+}
+
+int system_main_meun(regin *r_head,login *l_head,flight *f_head)                                             //购票系统的主界面
 {
 	int fd;
     struct input_event buff;
@@ -400,30 +706,30 @@ int system_main_meun(regin *r_head,login *l_head)                               
     int x,y;
     while(1)
     {
-        show_all_lcd_bmp("./image/meun/mian_meun.bmp");    //显示系统主界面的图片
+        show_all_lcd_bmp(bmp_24_1);    //显示系统主界面的图片
         bzero(&buff,sizeof(buff));
 		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x =  buff.value;
+		}
         if(buff.type == EV_ABS && buff.code == ABS_Y)
         {
             y = buff.value;
         }
         if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)
         {
-            if(y < 150)                                    //注册
+            if(y < 300)                                   
             {
-                regin_new_usr(r_head);
+            	usr_login_main_meun(r_head,l_head,f_head,fd);     //用户登陆界面
             }
-            if(y > 150 && y < 300)
+            if( y >300 && y < 500)
             {
-                usr_login_main_meun(r_head,l_head,fd);     //用户登陆界面
+                printf("admin login main meun\n");
             }
-            if(y > 300 && y < 450)
+            if(y > 500)
             {
-                break;
-            }
-            if(y > 450)
-            {
-                return 0;
+            	break;
             }
         }
     }
@@ -443,11 +749,16 @@ int main(int argc, char const *argv[])
 	l_head = init_login_list(l_head);      //初始化登陆
 
 
-	//2.初始化老用户
+	flight *f_head = NULL;
+	f_head = init_flight_list(f_head);     //初始化飞机数据
+
+
+	//2.初始化老用户、飞机票数据
 	init_old_usr_data(r_head);
+	init_flight_data(f_head);
 
 	//2.进入主界面
-	system_main_meun(r_head,l_head);
+	system_main_meun(r_head,l_head,f_head);
 
 
 	return 0;
