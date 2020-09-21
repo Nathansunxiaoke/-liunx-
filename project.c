@@ -19,7 +19,7 @@ char static bmp_24_0[] = "./image/meun/welcome.bmp";                   //欢迎�
 char static bmp_24_1[] = "./image/meun/mian_meun.bmp";                 //系统主界面
 char static bmp_24_2[] = "./image/meun/usr_login_meun.bmp";            //登陆界面
 char static bmp_24_3[] = "./image/meun/regin_meun.bmp";                //注册界面
-char static bmp_24_4[] = "./image/meun/usr_per_main_meun.bmp";         //用户个人主界面
+char static bmp_24_4[] = "./image/meun/usr_main_meun.bmp";         //用户个人主界面
 
 
 struct usr_data                    //用户数据
@@ -495,13 +495,13 @@ int init_flight_data(flight *f_head)                                            
 	return 0;
 }
 //================================================用户界面
-int deleta_login_status(regin *usr_per,login *l_head)                                          //退出登陆直接清楚登陆节点
+int deleta_login_status(regin *usr,login *l_head)                                          //退出登陆直接清楚登陆节点
 {
 	login *q = l_head;
 	login *p = l_head->next;
 	for(q,p;p != l_head;q = p,p = p->next)
 	{
-		if(strcmp(usr_per->std.name,p->l_std.name) == 0)         //找到节点
+		if(strcmp(usr->std.name,p->l_std.name) == 0)         //找到节点
 		{
 			q->next = p->next;
 			p->next->prev = q;
@@ -521,7 +521,13 @@ int show_all_flight_data(flight *f_head)
 	}
 	return	0;
 }
-int per_main_meun(regin *usr_per,login *l_head,flight *f_head,int fd)                                          //个人主界面
+
+buy_flight_meun(regin *usr,fligght *f_head,int fd)
+{
+	//显示全部机票信息、条件查询：目的地、班期、价格、起飞时间，购买
+}
+
+int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)                                          //个人主界面
 {
 	int x,y;
 	struct input_event buff;
@@ -542,7 +548,7 @@ int per_main_meun(regin *usr_per,login *l_head,flight *f_head,int fd)           
         {
         	if(x < 512 && y < 300)
         	{
-        		show_all_flight_data(f_head);
+        		buy_flight_meun(usr,f_head,fd);         //机票数据查询购买
         	}
         	if(x > 512 && y < 300)
         	{
@@ -556,14 +562,14 @@ int per_main_meun(regin *usr_per,login *l_head,flight *f_head,int fd)           
         	if(x > 512 && y > 300)
         	{
         		printf("logout\n");
-        		deleta_login_status(usr_per,l_head);
+        		deleta_login_status(usr,l_head);
         		break;
         	}
         }
     }
 }
 //================================================登陆
-int check_login_status(regin *usr_per,login *l_head,char *login_name_buff,flight *f_head,int fd)               //检查用户的登陆状态
+int check_login_status(regin *usr,login *l_head,char *login_name_buff,flight *f_head,int fd)               //检查用户的登陆状态
 {
 	char login_passwd_buff[20];
 	login *check = l_head->next;
@@ -571,13 +577,13 @@ int check_login_status(regin *usr_per,login *l_head,char *login_name_buff,flight
 	{
 		if(strcmp(check->l_std.name,login_name_buff) == 0)      //在登陆链上,免密码登陆
 		{
-			per_main_meun(usr_per,l_head,f_head,fd);           //进入用户界面
+			per_main_meun(usr,l_head,f_head,fd);           //进入用户界面
 			return 0;
 		}
 	}
 	printf("请输入密码：");
 	scanf("%s",login_passwd_buff);
-	if(strcmp(usr_per->std.passwd,login_passwd_buff) == 0)    
+	if(strcmp(usr->std.passwd,login_passwd_buff) == 0)    
 	{
 		//密码正确
 		login *usr_login = NULL;                       
@@ -585,14 +591,14 @@ int check_login_status(regin *usr_per,login *l_head,char *login_name_buff,flight
 		if(usr_login == NULL)
 			perror("malloc usr_login");
 
-		(usr_login->l_std) = (usr_per->std);     //将用户的数据加载到登陆链上    
+		(usr_login->l_std) = (usr->std);     //将用户的数据加载到登陆链上    
 		usr_login->next = l_head;
 		login *p = l_head->prev;
 
 		p->next = usr_login;
 		usr_login->prev = p;
 		l_head->prev = usr_login;              //完成链表
-		per_main_meun(usr_per,l_head,f_head,fd);       //进入的个人界面
+		per_main_meun(usr,l_head,f_head,fd);       //进入的个人界面
 		return 0;
 	}
 	else
