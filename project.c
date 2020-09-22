@@ -512,15 +512,46 @@ int deleta_login_status(regin *usr,login *l_head)                               
 	return -1;
 }
 
-int show_all_flight_data(flight *f_head)
+int show_all_flight_data(flight *f_head)                                                             //显示所有机票信息
 {
 	flight *p = f_head->next;
+	printf("==========================================================================\n");
+	printf("航班号\t出发地\t目的地\t班期\t机型\t起飞时间\t票价\t余票\n");
 	for(;p != f_head;p = p ->next)
 	{
-		printf("%s\n",p->info.number);
+		printf("%s\t%s\t%s\t%s\t%s\t%d\t%d\n",p->info.number,
+											p->info.staddress,
+											p->info.arraddress,
+											p->info.date,
+											p->info.type,
+											p->info.stime,
+											p->info.price,
+											p->info.poll);
 	}
+	printf("==========================================================================\n");
 	return	0;
 }
+
+targer_find_flight_data(flight * f_head)
+{
+	char adress_buff[10]= {0};
+	floght *p = f_head->next;
+	for(;p != f_head,p = p->next)
+	{
+		if(strcmp(p->arraddress,adress_buff) == 0)
+		{
+			printf("%s\t%s\t%s\t%s\t%s\t%d\t%d\n",p->info.number,
+											p->info.staddress,
+											p->info.arraddress,
+											p->info.date,
+											p->info.type,
+											p->info.stime,
+											p->info.price,
+											p->info.poll);
+		}
+	}
+}
+
 
 buy_flight_meun(regin *usr,fligght *f_head,int fd)
 {
