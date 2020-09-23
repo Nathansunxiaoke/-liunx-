@@ -49,6 +49,7 @@ struct flight_data                 //飞机基本信息
 typedef struct Regin_usr           //注册链
 {
 	struct usr_data std;          //注册用户的信息
+	                              //用户购票的相关信息
 
 	struct Regin_usr *prev;
 	struct Regin_usr *next;        
@@ -69,6 +70,8 @@ typedef struct flight_list         //机票链
 	struct flight_list *prev;       //前驱指针
 	struct flight_list *next;      //后继指针
 }flight;
+
+
 //====================================bmp===============================================//
 int show_all_lcd_bmp(char *bmp_path)                      //全屏显示一张24位bmp格式图片
 {
@@ -531,10 +534,13 @@ int show_all_flight_data(flight *f_head)                                        
 	printf("==========================================================================\n");
 	return	0;
 }
-
-targer_find_flight_data(flight * f_head)
+/*
+int targer_find_flight_data(flight * f_head)
 {
 	char adress_buff[10]= {0};
+	scanf("%s",adress_buff);
+	printf("==========================================================================\n");
+	printf("航班号\t出发地\t目的地\t班期\t机型\t起飞时间\t票价\t余票\n");
 	floght *p = f_head->next;
 	for(;p != f_head,p = p->next)
 	{
@@ -550,12 +556,50 @@ targer_find_flight_data(flight * f_head)
 											p->info.poll);
 		}
 	}
+	printf("==========================================================================\n");
+	return	0;
+}
+*/
+
+buy_flight_fun(usr,f_head,fd)               //购买机票
+{
+	char buy_buff[20];
+	show_all_flight_data(f_head);
+	printf("Place inter buy number:\n");
+	scanf("%s",buy_buff);
+	flight *p = f_head->next;
+	for(;p != f_head;p = p->next);
+	{
+		if(strcmp(p->info.number,buy_buff) == 0)
+		{
+			//开始购票
+		}
+	}
+	printf("NO find number messtion\n");
 }
 
-
-buy_flight_meun(regin *usr,fligght *f_head,int fd)
+int buy_flight_meun(regin *usr,fligght *f_head,int fd)
 {
 	//显示全部机票信息、条件查询：目的地、班期、价格、起飞时间，购买
+	//int x,y;
+	struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_4);    //显示用户个人主界面的图片
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0) 
+        {
+        	buy_flight_fun(usr,f_head,fd);
+        }
 }
 
 int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)                                          //个人主界面
