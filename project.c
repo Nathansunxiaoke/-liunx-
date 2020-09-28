@@ -46,6 +46,21 @@ struct flight_data                 //飞机基本信息
 	int poll;	            //余票
 };
 
+struct real_info                 //用户真实信息
+{
+	char real_name[10];           //真实姓名          
+	char real_idnum[20];          //真实身份证号码
+	unsigned int  real_type;      //身份类型 0：成人 1：儿童 2：军人、残疾人
+}；
+
+typedef struct Real_type          //实名认证链
+{
+	struct real_info r_info;      //身份数据域
+
+	struct Real_type *prev;        //前驱指针
+	struct Real_type *next;        //后继指针
+}real_id;
+
 typedef struct Regin_usr           //注册链
 {
 	struct usr_data std;          //注册用户的信息
@@ -58,6 +73,7 @@ typedef struct Regin_usr           //注册链
 typedef struct login_list          //登陆链
 {
 	struct usr_data l_std;         //登陆的用户信息
+	                               //购票飞机票的数据
 
 	struct login_list *prev;
 	struct login_list *next;
@@ -522,7 +538,7 @@ int show_all_flight_data(flight *f_head)                                        
 	printf("航班号\t出发地\t目的地\t班期\t机型\t起飞时间\t票价\t余票\n");
 	for(;p != f_head;p = p ->next)
 	{
-		printf("%s\t%s\t%s\t%s\t%s\t%d\t%d\n",p->info.number,
+		printf("%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",p->info.number,
 											p->info.staddress,
 											p->info.arraddress,
 											p->info.date,
@@ -535,7 +551,7 @@ int show_all_flight_data(flight *f_head)                                        
 	return	0;
 }
 /*
-int targer_find_flight_data(flight * f_head)
+int targer_find_flight_data(flight * f_head)                                                         //通过目的地查询航班
 {
 	char adress_buff[10]= {0};
 	scanf("%s",adress_buff);
@@ -561,7 +577,7 @@ int targer_find_flight_data(flight * f_head)
 }
 */
 
-buy_flight_fun(usr,f_head,fd)               //购买机票
+int buy_flight_fun(regin *usr,flight *f_head,int fd)               //购买机票
 {
 	char buy_buff[20];
 	show_all_flight_data(f_head);
@@ -578,10 +594,10 @@ buy_flight_fun(usr,f_head,fd)               //购买机票
 	printf("NO find number messtion\n");
 }
 
-int buy_flight_meun(regin *usr,fligght *f_head,int fd)
+int buy_flight_meun(regin *usr,flight *f_head,int fd)
 {
 	//显示全部机票信息、条件查询：目的地、班期、价格、起飞时间，购买
-	//int x,y;
+	int x,y;
 	struct input_event buff;
     while(1)
     {
@@ -600,6 +616,7 @@ int buy_flight_meun(regin *usr,fligght *f_head,int fd)
         {
         	buy_flight_fun(usr,f_head,fd);
         }
+	}
 }
 
 int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)                                          //个人主界面
@@ -704,7 +721,7 @@ int usr_login_fun(regin *r_head,login *l_head,flight *f_head,int fd)            
 	return 0;
 }
 
-int usr_regin_meun(regin *r_head,int fd)
+int usr_regin_meun(regin *r_head,int fd)                                                                    //用户注册界面
 {
 	int x,y;
 	struct input_event buff;
