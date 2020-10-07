@@ -19,7 +19,9 @@ char static bmp_24_0[] = "./image/meun/welcome.bmp";                   //欢迎�
 char static bmp_24_1[] = "./image/meun/mian_meun.bmp";                 //系统主界面
 char static bmp_24_2[] = "./image/meun/usr_login_meun.bmp";            //登陆界面
 char static bmp_24_3[] = "./image/meun/regin_meun.bmp";                //注册界面
-char static bmp_24_4[] = "./image/meun/usr_main_meun.bmp";         //用户个人主界面
+char static bmp_24_4[] = "./image/meun/usr_main_meun.bmp";             //用户个人主界面
+char static bmp_24_5[] = "./image/meun/per_info_meun.bmp";             //用户个人信息界面
+char static bmp_24_6[] = "./image/meun/buy_ticket.bmp";                //买票界面 
 
 
 struct usr_data                    //用户数据
@@ -31,7 +33,9 @@ struct usr_data                    //用户数据
     char Sec_answer[20];	  //密保问题答案
     int real_name_flag;       //是否实名认证           
     int memony;               //余额
-    int Vip;                  //是否是VIP    
+    int Vip;                  //是否是VIP  
+    char real_name[10];       //真实姓名 
+    int type;                 //旅客类型 
 };
 
 struct flight_data                 //飞机基本信息
@@ -40,7 +44,7 @@ struct flight_data                 //飞机基本信息
 	char staddress[10];     //起点站
 	char arraddress[15];    //终点站
 	char date[15];          //班期
-	char type[1];              //机型
+	char type[2];           //机型
 	char stime[10];         //起飞时间
 	unsigned int  price;    //票价
 	int poll;	            //余票
@@ -51,7 +55,24 @@ struct real_info                 //用户真实信息
 	char real_name[10];           //真实姓名          
 	char real_idnum[20];          //真实身份证号码
 	unsigned int  real_type;      //身份类型 0：成人 1：儿童 2：军人、残疾人
-}；
+};
+
+struct buy_ticket_info           //买票的相关信息
+{
+	char buy_usr[10];               //买票的人
+	char take_usr[10];              //乘车的人
+	char f_number[10];              //航班号
+	int buy_price;                  //购买的价格
+	int ins_flag;                   //是否需要买了保险
+};
+
+typedef struct buy_ticket_list        //买票链
+{
+	struct buy_ticket_info b_info; //买票的信息
+
+	struct buy_ticket_list *prev;   
+	struct buy_ticket_list *next;
+}buy_ticket;
 
 typedef struct Real_type          //实名认证链
 {
@@ -64,7 +85,7 @@ typedef struct Real_type          //实名认证链
 typedef struct Regin_usr           //注册链
 {
 	struct usr_data std;          //注册用户的信息
-	                              //用户购票的相关信息
+	buy_ticket b_ticket_list;     //用户购票的相关信息
 
 	struct Regin_usr *prev;
 	struct Regin_usr *next;        
@@ -73,7 +94,6 @@ typedef struct Regin_usr           //注册链
 typedef struct login_list          //登陆链
 {
 	struct usr_data l_std;         //登陆的用户信息
-	                               //购票飞机票的数据
 
 	struct login_list *prev;
 	struct login_list *next;
@@ -237,7 +257,7 @@ login *init_login_list(login *l_head)                                           
 	return l_head;
 }
 
-flight *init_flight_list(flight *f_head)
+flight *init_flight_list(flight *f_head)                                                       //初始化飞机链的头结点
 {
 	f_head = (flight *)malloc(sizeof(flight));
 	if(f_head == NULL)
@@ -252,6 +272,21 @@ flight *init_flight_list(flight *f_head)
 	return f_head;
 }
 
+real_id *init_read_id_list(real_id *i_head)                                                   //初始化真实身份数据链
+{
+	i_head = (real_id *)malloc(sizeof(real_id));
+	if(i_head == NULL)
+	{
+		perror("malloc f_head");
+		exit(0);
+	}
+	//指针域赋值
+	i_head->prev = i_head;
+	i_head->next = i_head;
+
+	return i_head;
+}
+
 int save_usr_data_file(regin *new_usr)                                                          //保存用户注册的数据到文件
 {
 	int n = 0;
@@ -263,20 +298,38 @@ int save_usr_data_file(regin *new_usr)                                          
 	fp = fopen(file_name,"w");
 	if(fp == NULL)
 		perror("fopen");
-	sprintf(file_info_buff,"%s,%s,%s,%s,%s,%d,%d,%d,",	new_usr->std.name,
+	sprintf(file_info_buff,"%s,%s,%s,%s,%s,%d,%d,%d,%s,%d",	new_usr->std.name,
 														new_usr->std.passwd,
 														new_usr->std.tel,
 														new_usr->std.Sec_quation,
 														new_usr->std.Sec_answer,
 														new_usr->std.real_name_flag,
 														new_usr->std.memony,
-														new_usr->std.Vip);
+														new_usr->std.Vip,
+														new_usr->std.real_name,
+														new_usr->std.type);
 	n = fwrite(file_info_buff,strlen(file_info_buff),1,fp);
 	if(n < 1)
 		perror("fwrite");
 	fclose(fp);
 
 	return 0;
+}
+
+buy_ticket *init_buy_ticket_list(regin *old_usr,buy_ticket *b_head)
+{
+	b_head = (buy_ticket *)malloc(sizeof(buy_ticket));
+	if(b_head == NULL)
+	{
+		perror("malloc error");
+		exit(0);
+	}
+
+	//双向循环链表初始化头节点，前驱节点和后驱节点都指向头
+	b_head->prev = &(old_usr->b_ticket_list);               //指向初始化后的头节点
+	b_head->next = &(old_usr->b_ticket_list);
+
+	return b_head;	
 }
 
 int regin_new_usr(regin *r_head)                                                               //注册                     
@@ -316,7 +369,11 @@ int regin_new_usr(regin *r_head)                                                
 
 	new_usr->std.real_name_flag = 0;             //没有实名认证
 	new_usr->std.memony = 0;                     //没有钱
-	new_usr->std.Vip = 0;                     //不是VIP
+	new_usr->std.Vip = 0;                        //不是VIP
+	strcpy(new_usr->std.real_name,"NULL");         //没有名字
+	new_usr->std.type = 0;                       //默认位成人
+
+	new_usr->b_ticket_list = *(init_buy_ticket_list(new_usr,&new_usr->b_ticket_list));                    //初始化用户的购票链
 
 	//数据域赋值结束     
 	new_usr->next = r_head;            //新用户尾插下一个节点指向头               
@@ -376,6 +433,14 @@ int read_usr_info(regin *r_head,char *file_name)                                
 	buff = strtok(NULL,taken);
 	old_usr->std.Vip = atoi(buff);     //是否是会员
 
+	buff = strtok(NULL,taken);
+	strcpy(old_usr->std.real_name,buff);  //真实姓名
+
+	buff = strtok(NULL,taken);
+	old_usr->std.type = atoi(buff);     //用户旅客类型
+
+	old_usr->b_ticket_list = *(init_buy_ticket_list(old_usr,&old_usr->b_ticket_list));                    //初始化用户的购票链
+
 	old_usr->next = r_head;
 
 	regin *p = r_head->prev;
@@ -384,7 +449,6 @@ int read_usr_info(regin *r_head,char *file_name)                                
 	old_usr->prev = p;
 	r_head->prev = old_usr;
 	return 0;
-
 }
 
 int init_old_usr_data(regin *r_head)                                                           //初始化注册过的用户
@@ -513,6 +577,85 @@ int init_flight_data(flight *f_head)                                            
 	closedir(dp);
 	return 0;
 }
+
+int read_id_info(real_id *i_head,char *id_info)
+{
+	FILE *fp;
+	int n;
+	char taken[] = ",";
+	char *buff;
+	char read_id_info_buf[100] = {0};      //真实信息
+	fp = fopen(id_info,"r");
+	if(fp == NULL)
+	{
+		perror("fopen real id");
+		exit(0);
+	}
+	n = fread(read_id_info_buf,sizeof(read_id_info_buf),1,fp);
+	if(n < 0)
+	{
+		perror("fread real id");
+		exit(0);
+	}
+
+	real_id *new = NULL;
+	new = (real_id *)malloc(sizeof(real_id));
+	if(new == NULL)
+	{
+		perror("malloc error");
+		exit(0);
+	}
+	//为数值域赋值
+	//为数值域赋值
+	buff = strtok(read_id_info_buf,taken);
+	strcpy(new->r_info.real_name,buff);       //真实姓名
+
+	buff =  strtok(NULL,taken);
+	strcpy(new->r_info.real_idnum,buff);       //真实省份号码
+
+	buff =  strtok(NULL,taken);
+	new->r_info.real_type = atoi(buff);     //旅客类型
+
+	//指针域赋值
+	new->next = i_head;
+	real_id *p = i_head->prev;
+
+	p->next = new;
+	new->prev =  p;
+	i_head->prev = new;
+
+	return 0;
+}
+
+int init_read_id_data(real_id *i_head)                                                         //初始化实名认证数据链
+{
+	int ret;
+	DIR *dp = NULL;
+	dp = opendir("./data/real_id");                      //打开到用户储用户信息的地方
+	if(dp ==  NULL)
+		perror("opendir");
+	ret = chdir("./data/real_id");                              //切换到储存用户的目录下
+	if(ret == -1)
+		perror("chdir");
+	struct dirent *usr_data_buff = NULL;
+	while(1)
+	{
+		usr_data_buff = readdir(dp);
+		if(usr_data_buff == NULL) //没有文件
+			break;
+		if(usr_data_buff->d_name[0] == '.')  //是隐藏文件继续读
+		{
+			continue;
+		}
+		read_id_info(i_head,usr_data_buff->d_name);
+	}
+	ret = chdir("./../..");
+	if(ret == -1)
+		perror("chdir");
+	closedir(dp);
+
+	return 0;
+}
 //================================================用户界面
 int deleta_login_status(regin *usr,login *l_head)                                          //退出登陆直接清楚登陆节点
 {
@@ -534,11 +677,11 @@ int deleta_login_status(regin *usr,login *l_head)                               
 int show_all_flight_data(flight *f_head)                                                             //显示所有机票信息
 {
 	flight *p = f_head->next;
-	printf("==========================================================================\n");
-	printf("航班号\t出发地\t目的地\t班期\t机型\t起飞时间\t票价\t余票\n");
+	printf("=======================================================================\n");
+	printf("航班号\t出发地\t目的地\t  班期\t   机型   起飞时间\t票价\t余票\n");
 	for(;p != f_head;p = p ->next)
 	{
-		printf("%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",p->info.number,
+		printf(" %s\t %s\t %s\t%s   %s\t  %s  \t%d\t%d\n",p->info.number,
 											p->info.staddress,
 											p->info.arraddress,
 											p->info.date,
@@ -547,7 +690,7 @@ int show_all_flight_data(flight *f_head)                                        
 											p->info.price,
 											p->info.poll);
 	}
-	printf("==========================================================================\n");
+	printf("======================================================================\n");
 	return	0;
 }
 /*
@@ -577,21 +720,51 @@ int targer_find_flight_data(flight * f_head)                                    
 }
 */
 
+int add_buy_ticket_tail(regin *usr,buy_ticket *b_head,flight *p)
+{
+	buy_ticket * new = NULL;
+	new = (buy_ticket *)malloc(sizeof(buy_ticket));
+	if(new == NULL)
+	{
+		perror("malloc new error");
+		exit(0);
+	}
+	strcpy(new->b_info.buy_usr,usr->std.name);
+	strcpy(new->b_info.take_usr,usr->std.real_name);
+	strcpy(new->b_info.f_number,p->info.number);
+	new->b_info.buy_price = 10;
+	new->b_info.ins_flag = 1;
+
+	//指针域赋值
+	new->next = b_head;
+
+	buy_ticket *q = b_head->prev;
+
+	q->next = new;
+	new->prev =  q;
+	b_head->prev = new;
+
+	return 0;
+}
+
 int buy_flight_fun(regin *usr,flight *f_head,int fd)               //购买机票
 {
 	char buy_buff[20];
 	show_all_flight_data(f_head);
-	printf("Place inter buy number:\n");
+	printf("Place inter buy number:");
 	scanf("%s",buy_buff);
 	flight *p = f_head->next;
-	for(;p != f_head;p = p->next);
+	for(;p != f_head;p = p ->next)
 	{
 		if(strcmp(p->info.number,buy_buff) == 0)
 		{
-			//开始购票
+			
+			add_buy_ticket_tail(usr,&(usr->b_ticket_list),p);
+			return 0;
 		}
 	}
 	printf("NO find number messtion\n");
+	return 0;
 }
 
 int buy_flight_meun(regin *usr,flight *f_head,int fd)
@@ -601,7 +774,7 @@ int buy_flight_meun(regin *usr,flight *f_head,int fd)
 	struct input_event buff;
     while(1)
     {
-        show_all_lcd_bmp(bmp_24_4);    //显示用户个人主界面的图片
+        show_all_lcd_bmp(bmp_24_6);    //显示买票界面
         bzero(&buff,sizeof(buff));
 		read(fd,&buff,sizeof(buff));
 		if(buff.type == EV_ABS && buff.code == ABS_X)
@@ -614,12 +787,136 @@ int buy_flight_meun(regin *usr,flight *f_head,int fd)
         }
         if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0) 
         {
-        	buy_flight_fun(usr,f_head,fd);
+        	if(y < 300)
+			{
+				buy_flight_fun(usr,f_head,fd);
+			}
+			if(y > 300)
+			{
+				break;
+			}
+				
         }
+	}
+	return 0;
+}
+
+void print_usr_menoy(regin *usr)                                      //产看余额
+{
+	printf("您当前的余额:%d\n",usr->std.memony);
+}
+
+void check_vip(regin *usr)                                            //查看是否是VIp用户
+{
+	if(usr->std.Vip == 1)
+	{
+		printf("您是Vip用户\n");
+	}
+	else
+	{
+		printf("您不是Vip用户\n");
 	}
 }
 
-int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)                                          //个人主界面
+int  check_real_id(regin *usr,real_id *i_head)
+{
+	char real_name_buf[10];
+	char real_ID_buf[20];
+	real_id *p =NULL;
+	p = i_head ->next;
+
+	if(usr->std.real_name_flag == 1)
+	{
+		printf("您已经完成实名认证\n");
+		return 0;
+	}
+	else
+	{
+		printf("请输入您的真实姓名:");
+		scanf("%s",real_name_buf);
+		printf("请输入您的身份证号码:");
+		scanf("%s",real_ID_buf);
+		for(p;p != i_head;p = p->next)
+		{
+			printf("%s\n",p->r_info.real_idnum);
+			printf("%s\n",p->r_info.real_name);
+			if((strcmp(real_name_buf,p->r_info.real_name) == 0) && (strcmp(real_ID_buf,p->r_info.real_idnum) == 0))         //验证姓名和身份证是否一致
+			{
+				//将实名认证标志位置1
+				usr->std.real_name_flag = 1;
+				//将旅客类型添加到用户的旅客类型上
+				usr->std.type = p->r_info.real_type;
+				//将真实名字添加到用户数据上
+				strcpy(usr->std.real_name,p->r_info.real_name);
+				save_usr_data_file(usr);
+				return 0;
+			}
+		}
+		printf("认证失败，姓名和身份证不匹配\n");	
+		return -1;
+	}
+}
+
+void  print_test(regin *usr)
+{
+	buy_ticket *b_head =(buy_ticket *)&(usr->b_ticket_list);
+	buy_ticket *p = b_head->next;
+	for(;p != b_head;p = p ->next)
+	{
+		printf("%s\n",p->b_info.f_number);
+	}
+	printf("no print\n");
+}
+int per_info_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id *i_head,int fd)              //个人信息界面
+{
+	int x,y;
+	struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_5);    //显示用户个人信息的图片
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)         //接口 充值，查余额，我的订单、vip、实名认证、返回上一级
+        {
+        	if(x < 512 && y < 200)                     //查询余额
+        	{
+        		print_usr_menoy(usr);
+        	}
+        	if(x < 512 && y > 200 && y < 400)         //我的订单
+        	{
+        		print_test(usr);
+        	}
+        	if(x < 512 && y > 400)                   //修改个人信息
+        	{
+        		
+        	}
+        	if(x > 512 && y < 200)                    //vip
+        	{
+        		check_vip(usr);
+        	}
+        	if(x > 512 && y > 200 && y < 400)         //实名认证
+        	{
+    			check_real_id(usr,i_head);
+        	}
+        	if(x > 512 && y > 400)                   //返回上一级
+        	{
+        		break;
+        	}
+        }
+    
+    }
+        return 0;
+}
+
+int per_main_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id *i_head,int fd)                                   //个人主界面
 {
 	int x,y;
 	struct input_event buff;
@@ -644,7 +941,7 @@ int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)               
         	}
         	if(x > 512 && y < 300)
         	{
-        		printf("person info\n");
+        		per_info_meun(usr,r_head,l_head,f_head,i_head,fd);   //个人信息界面
         	}
         	if(x < 512 && y > 300)
         	{
@@ -661,15 +958,15 @@ int per_main_meun(regin *usr,login *l_head,flight *f_head,int fd)               
     }
 }
 //================================================登陆
-int check_login_status(regin *usr,login *l_head,char *login_name_buff,flight *f_head,int fd)               //检查用户的登陆状态
+int check_login_status(regin *usr,regin *r_head,login *l_head,char *login_name_buff,flight *f_head,real_id *i_head,int fd)               //检查用户的登陆状态
 {
 	char login_passwd_buff[20];
 	login *check = l_head->next;
 	for(;check != l_head;check = check->next)                 //检查是否在登陆链上
 	{
-		if(strcmp(check->l_std.name,login_name_buff) == 0)      //在登陆链上,免密码登陆
+		if(strcmp(check->l_std.name,login_name_buff) == 0)      //在登陆链上,免密码登陆            //登陆只需要记住一个是谁登陆了， 
 		{
-			per_main_meun(usr,l_head,f_head,fd);           //进入用户界面
+			per_main_meun(usr,r_head,l_head,f_head,i_head,fd);           //进入用户界面
 			return 0;
 		}
 	}
@@ -690,7 +987,7 @@ int check_login_status(regin *usr,login *l_head,char *login_name_buff,flight *f_
 		p->next = usr_login;
 		usr_login->prev = p;
 		l_head->prev = usr_login;              //完成链表
-		per_main_meun(usr,l_head,f_head,fd);       //进入的个人界面
+		per_main_meun(usr,r_head,l_head,f_head,i_head,fd);       //进入的个人界面
 		return 0;
 	}
 	else
@@ -700,7 +997,7 @@ int check_login_status(regin *usr,login *l_head,char *login_name_buff,flight *f_
 	}
 }
 
-int usr_login_fun(regin *r_head,login *l_head,flight *f_head,int fd)                                          //检查用户的注册状态
+int usr_login_fun(regin *r_head,login *l_head,flight *f_head,real_id *i_head,int fd)                                          //检查用户的注册状态
 {
 	char login_name_buff[10];
 	printf("请输入用户名:");
@@ -710,14 +1007,11 @@ int usr_login_fun(regin *r_head,login *l_head,flight *f_head,int fd)            
 	{
 		if(strcmp(check_reg->std.name,login_name_buff) == 0)  //注册过
 		{
-			check_login_status(check_reg,l_head,login_name_buff,f_head,fd);   
-		}
-		else
-		{
-			printf("您还没有注册过\n");
-			return -1;
+			check_login_status(check_reg,r_head,l_head,login_name_buff,f_head,i_head,fd);   
+			return 0;
 		}
 	}
+	printf("您还没有注册过\n");
 	return 0;
 }
 
@@ -753,7 +1047,7 @@ int usr_regin_meun(regin *r_head,int fd)                                        
     return 0;
 }
 
-int usr_login_main_meun(regin *r_head,login *l_head,flight *f_head,int fd)                                   //用户登陆界面
+int usr_login_main_meun(regin *r_head,login *l_head,flight *f_head,real_id *i_head,int fd)                                   //用户登陆界面
 {	
     int x,y;
     struct input_event buff;
@@ -774,11 +1068,11 @@ int usr_login_main_meun(regin *r_head,login *l_head,flight *f_head,int fd)      
         {
         	if(y <120)
         	{
-        		usr_regin_meun(r_head,fd);
+        		usr_regin_meun(r_head,fd);                                  //进入注册界面
         	}
         	if(y > 120 && y < 240)
         	{
-        		usr_login_fun(r_head,l_head,f_head,fd);             //可以字符可以先加入缓冲区直接验证
+        		usr_login_fun(r_head,l_head,f_head,i_head,fd);             //可以字符可以先加入缓冲区直接验证
         	}
         	if(y > 240 && y < 360)
         	{
@@ -794,7 +1088,7 @@ int usr_login_main_meun(regin *r_head,login *l_head,flight *f_head,int fd)      
     return 0;
 }
 
-int system_main_meun(regin *r_head,login *l_head,flight *f_head)                                             //购票系统的主界面
+int system_main_meun(regin *r_head,login *l_head,flight *f_head,real_id *i_head)                                             //购票系统的主界面
 {
 	int fd;
     struct input_event buff;
@@ -819,7 +1113,7 @@ int system_main_meun(regin *r_head,login *l_head,flight *f_head)                
         {
             if(y < 300)                                   
             {
-            	usr_login_main_meun(r_head,l_head,f_head,fd);     //用户登陆界面
+            	usr_login_main_meun(r_head,l_head,f_head,i_head,fd);     //用户登陆界面
             }
             if( y >300 && y < 500)
             {
@@ -846,17 +1140,20 @@ int main(int argc, char const *argv[])
 	login *l_head = NULL;
 	l_head = init_login_list(l_head);      //初始化登陆
 
-
 	flight *f_head = NULL;
 	f_head = init_flight_list(f_head);     //初始化飞机数据
 
+	real_id *i_head = NULL;
+	i_head = init_read_id_list(i_head);    //初始化实名认证链
+
 
 	//2.初始化老用户、飞机票数据
-	init_old_usr_data(r_head);
-	init_flight_data(f_head);
+	init_old_usr_data(r_head); //用户
+	init_flight_data(f_head);//机票
+	init_read_id_data(i_head);//真实身份
 
 	//2.进入主界面
-	system_main_meun(r_head,l_head,f_head);
+	system_main_meun(r_head,l_head,f_head,i_head);
 
 
 	return 0;
