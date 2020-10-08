@@ -21,7 +21,8 @@ char static bmp_24_2[] = "./image/meun/usr_login_meun.bmp";            //登陆�
 char static bmp_24_3[] = "./image/meun/regin_meun.bmp";                //注册界面
 char static bmp_24_4[] = "./image/meun/usr_main_meun.bmp";             //用户个人主界面
 char static bmp_24_5[] = "./image/meun/per_info_meun.bmp";             //用户个人信息界面
-char static bmp_24_6[] = "./image/meun/buy_ticket.bmp";                //买票界面 
+char static bmp_24_6[] = "./image/meun/buy_ticket.bmp";                //买票界面
+char static bmp_24_7[] = "./image/meun/per_order_meun.bmp";            //用户订单界面
 
 
 struct usr_data                    //用户数据
@@ -106,7 +107,6 @@ typedef struct flight_list         //机票链
 	struct flight_list *prev;       //前驱指针
 	struct flight_list *next;      //后继指针
 }flight;
-
 
 //====================================bmp===============================================//
 int show_all_lcd_bmp(char *bmp_path)                      //全屏显示一张24位bmp格式图片
@@ -758,7 +758,6 @@ int buy_flight_fun(regin *usr,flight *f_head,int fd)               //购买机�
 	{
 		if(strcmp(p->info.number,buy_buff) == 0)
 		{
-			
 			add_buy_ticket_tail(usr,&(usr->b_ticket_list),p);
 			return 0;
 		}
@@ -857,16 +856,96 @@ int  check_real_id(regin *usr,real_id *i_head)
 	}
 }
 
-void  print_test(regin *usr)
+void  show_all_per_order(regin *usr,flight *f_head)
 {
 	buy_ticket *b_head =(buy_ticket *)&(usr->b_ticket_list);
 	buy_ticket *p = b_head->next;
+	flight *q = f_head->next;
+
+	printf("===========================================================================\n");
+	printf("航班号\t出发地\t目的地\t  班期\t   机型   起飞时间\t票价\t余票\t已支付\n");
 	for(;p != b_head;p = p ->next)
 	{
-		printf("%s\n",p->b_info.f_number);
+		for(;q != f_head;q = q -> next)
+		{
+			if(strcmp(p->b_info.f_number,q->info.number) == 0)
+			{
+				printf(" %s\t %s\t %s\t%s   %s\t  %s  \t%d\t%d\t %d\n",q->info.number,
+											q->info.staddress,
+											q->info.arraddress,
+											q->info.date,
+											q->info.type,
+											q->info.stime,
+											q->info.price,
+											q->info.poll,
+											p->b_info.buy_price);
+			}
+		}
 	}
-	printf("no print\n");
 }
+
+int per_order_meue(regin *usr,flight *f_head,int fd)
+{
+	int x,y;
+	struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_7);    //显示用户订单界面
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)               //设置显示全部订单、退票、改签，返回上一级
+		{
+			if(y < 150)
+			{
+				show_all_per_order(usr,f_head);
+			}
+			if(y > 150 && y < 300)
+			{
+
+			}
+			if(y > 300 && y < 450)
+			{
+				
+			}
+			if(y > 450)        //返回
+			{
+				break;
+			}
+		}
+	}
+	return 0;
+}
+
+int recharge(regin *usr)                //充值
+{
+	//提示，充值一次性充值3000升级为砖石会员
+	printf("尊敬的用户，一次性充值3000元，将成为砖石会员，买票将享受8折优化哦\n");
+	int rc_money;
+	printf("请输入充值的金额:");
+	scanf("%d",&rc_money);
+	if(rc_money >= 3000)
+	{
+		usr->std.Vip = 1;
+		usr->std.memony = rc_money;
+		save_usr_data_file(usr);
+		return 0;
+	}	
+	else
+	{
+		usr->std.memony = rc_money;
+		save_usr_data_file(usr);
+		return 0;
+	}
+}
+
 int per_info_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id *i_head,int fd)              //个人信息界面
 {
 	int x,y;
@@ -886,13 +965,17 @@ int per_info_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id 
         }
         if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0)         //接口 充值，查余额，我的订单、vip、实名认证、返回上一级
         {
-        	if(x < 512 && y < 200)                     //查询余额
+        	if(x < 256 && y < 200)                     //查询余额
         	{
         		print_usr_menoy(usr);
         	}
+			if(x > 256 && x < 512 && y < 200)         //充值
+        	{
+        		recharge(usr);
+        	}
         	if(x < 512 && y > 200 && y < 400)         //我的订单
         	{
-        		print_test(usr);
+				per_order_meue(usr,f_head,fd);
         	}
         	if(x < 512 && y > 400)                   //修改个人信息
         	{
