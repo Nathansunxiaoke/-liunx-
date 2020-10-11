@@ -23,6 +23,7 @@ char static bmp_24_4[] = "./image/meun/usr_main_meun.bmp";             //用户�
 char static bmp_24_5[] = "./image/meun/per_info_meun.bmp";             //用户个人信息界面
 char static bmp_24_6[] = "./image/meun/buy_ticket.bmp";                //买票界面
 char static bmp_24_7[] = "./image/meun/per_order_meun.bmp";            //用户订单界面
+char static bmp_24_8[] = "./image/meun/flight_delay_ins.bmp";          //是否购买保险
 
 
 struct usr_data                    //用户数据
@@ -287,6 +288,28 @@ real_id *init_read_id_list(real_id *i_head)                                     
 	return i_head;
 }
 
+void save_usr_buy_flight_data(buy_ticket *new_usr)
+{
+	int n = 0;
+	FILE *fp = NULL;
+	char file_name[30] = {0};
+	char file_info_buf[100] = {0};
+
+	sprintf(file_name,"./data/buy_ticket_data/%s_%s.txt",new_usr->b_info.take_usr,new_usr->b_info.f_number);
+	fp = fopen(file_name,"w");
+	if(fp == NULL)
+		perror("fopen");
+	sprintf(file_info_buf,"%s,%s,%s,%d,%d,",new_usr->b_info.buy_usr,
+											new_usr->b_info.take_usr,
+											new_usr->b_info.f_number,
+											new_usr->b_info.buy_price,
+											new_usr->b_info.ins_flag);
+	n = fwrite(file_info_buf,strlen(file_info_buf),1,fp);
+	if(n < 1)
+		perror("fwrite");
+	fclose(fp);
+}
+
 int save_usr_data_file(regin *new_usr)                                                          //保存用户注册的数据到文件
 {
 	int n = 0;
@@ -312,7 +335,6 @@ int save_usr_data_file(regin *new_usr)                                          
 	if(n < 1)
 		perror("fwrite");
 	fclose(fp);
-
 	return 0;
 }
 
@@ -479,6 +501,92 @@ int init_old_usr_data(regin *r_head)                                            
 	closedir(dp);
 
 	return 0;
+}
+
+void read_usr_buy_info(regin *r_head,buy_ticket *b_head,char *file_name)
+{
+	
+	FILE *fp = NULL;
+	char taken[] = ",";
+	char *buff = NULL;
+	int n;
+	char usr_buy_buff[100] = {0};
+
+	fp = fopen(file_name,"r");
+	if(fp ==  NULL)
+		perror("fopen");
+	n = fread(usr_buy_buff,sizeof(usr_buy_buff),1,fp);
+	if(n < 0)
+		perror("fread");
+
+	//为数据域赋值
+
+	buff = strtok(usr_buy_buff,taken);
+	regin *p = r_head->next;
+	for(;p != r_head;p = p->next)
+	{
+		if(strcmp(p->std.name,buff) == 0)
+		{
+			buy_ticket *new =NULL;
+			new = (buy_ticket *)malloc(sizeof(buy_ticket));
+			strcpy(new->b_info.buy_usr,buff);//购买者
+			buff = strtok(NULL,taken);
+			strcpy(new->b_info.take_usr,buff);//乘车者
+			buff = strtok(NULL,taken);
+			strcpy(new->b_info.f_number,buff);//乘坐的航班号
+			buff = strtok(NULL,taken);
+			new->b_info.buy_price = atoi(buff);//买票的钱
+			buff = strtok(NULL,taken);
+			new->b_info.ins_flag = atoi(buff);//是否购买保险
+
+			//指针域
+			for(p = r_head->next;p != r_head;p = p->next)
+			{
+				//乘车的人的信息
+				if(strcmp(p->std.real_name,new->b_info.take_usr) == 0)
+				{
+					new->next = &(p->b_ticket_list);
+					
+					//买票的头节点
+					buy_ticket *u = (&(p->b_ticket_list))->prev;
+					u->next = new;
+					new->prev = u;
+					(&(p->b_ticket_list))->prev = new;
+				}
+			}
+		}
+	}
+}
+
+int init_buy_ticket_date(regin *r_head,buy_ticket *b_head)
+{
+	int ret;
+	DIR *dp = NULL;
+	dp = opendir("./data/buy_ticket_data");
+	if(dp == NULL)
+	{
+		perror("opendir error\n");
+	}
+	ret = chdir("./data/buy_ticket_data");
+	struct dirent *usr_buy_buff = NULL;
+	while(1)
+	{
+		usr_buy_buff = readdir(dp);
+		if(usr_buy_buff == NULL) //没有文件
+			break;
+		if(usr_buy_buff->d_name[0] == '.')  //是隐藏文件继续读
+		{
+			continue;
+		}
+		read_usr_buy_info(r_head,b_head,usr_buy_buff->d_name);
+	}
+	ret = chdir("./../..");
+	if(ret == -1)
+		perror("chdir");
+	closedir(dp);
+
+	return 0;
+
 }
 
 int read_flight_data_buff(flight *f_head,char *file_name)                    
@@ -720,8 +828,80 @@ int targer_find_flight_data(flight * f_head)                                    
 }
 */
 
-int add_buy_ticket_tail(regin *usr,buy_ticket *b_head,flight *p)
+int flight_delay_ins(regin *usr,int fd)
 {
+	int x,y;
+	struct input_event buff;
+    while(1)
+    {
+        show_all_lcd_bmp(bmp_24_8);    //显示是否要买保险
+        bzero(&buff,sizeof(buff));
+		read(fd,&buff,sizeof(buff));
+		if(buff.type == EV_ABS && buff.code == ABS_X)
+		{
+			x = buff.value;
+		}
+        if(buff.type == EV_ABS && buff.code == ABS_Y)
+        {
+            y = buff.value;
+        }
+        if(buff.type == EV_KEY && buff.code == BTN_TOUCH && buff.value == 0) 
+		{
+			if(usr->std.memony > 100)
+			{
+				if(x < 512)
+				{
+					//1.悬着买保险
+				
+					return 1;
+				}
+				if(x > 512)
+				{
+					//2.不买保险
+					return 0;
+				}
+			}
+			else
+			{
+				printf("您的余额已经不足以支付保险费，请充值");
+				return -1;
+			}
+				
+		}
+	}
+}
+
+int check_usr_start_date(buy_ticket *b_head,flight *p,flight *f_head)
+{
+	buy_ticket *q = b_head->next;
+	flight *d = f_head->next;
+	for(;q != b_head;q = q->next)
+	{
+		//购买有这个航班了
+		if(strcmp(p->info.number,q->b_info.f_number) == 0)
+		{
+			printf("已经有该航班票了\n");
+			return -1;
+		}
+		for(d;d != f_head;d = d->next)
+		{
+			if(strcmp(p->info.number,d->info.number) == 0)
+			{
+				//是否有当天票
+				if(strcmp(p->info.number,d->info.number) == 0)
+				printf("已经有同一天的航班了\n");
+				return -2;
+			}
+		}
+	}
+	return 0;
+}
+
+int add_buy_ticket_tail(regin *r_head,regin *usr,buy_ticket *b_head,flight *p,flight *f_head,int fd)
+{
+	//1.有票判断是否是会员、会员打9折、是儿童半价、军人8折
+	//2.判断旅客类型如果是军人儿童，无论是否是会员都是半价和８折
+	int b_money;
 	buy_ticket * new = NULL;
 	new = (buy_ticket *)malloc(sizeof(buy_ticket));
 	if(new == NULL)
@@ -729,44 +909,133 @@ int add_buy_ticket_tail(regin *usr,buy_ticket *b_head,flight *p)
 		perror("malloc new error");
 		exit(0);
 	}
-	strcpy(new->b_info.buy_usr,usr->std.name);
-	strcpy(new->b_info.take_usr,usr->std.real_name);
-	strcpy(new->b_info.f_number,p->info.number);
-	new->b_info.buy_price = 10;
-	new->b_info.ins_flag = 1;
-
-	//指针域赋值
-	new->next = b_head;
-
-	buy_ticket *q = b_head->prev;
-
-	q->next = new;
-	new->prev =  q;
-	b_head->prev = new;
-
-	return 0;
-}
-
-int buy_flight_fun(regin *usr,flight *f_head,int fd)               //购买机票
-{
-	char buy_buff[20];
-	show_all_flight_data(f_head);
-	printf("Place inter buy number:");
-	scanf("%s",buy_buff);
-	flight *p = f_head->next;
-	for(;p != f_head;p = p ->next)
+	//3.帮被人买票需要判断这个用户是否存在且是否实名
+	char take_usr[10];
+	printf("请输入乘车人:");
+	scanf("%s",take_usr);
+	//4.判断是否有这个人
+	regin *u = r_head->next;
+	int ret_ins;
+	int check;
+	for(u;u->next != r_head;u = u->next)
 	{
-		if(strcmp(p->info.number,buy_buff) == 0)
+		//5.有真实名字的都实名了 //是否有同一天的飞机，
+		if(strcmp(u->std.real_name,take_usr) == 0 )
 		{
-			add_buy_ticket_tail(usr,&(usr->b_ticket_list),p);
-			return 0;
+			//3.判断该用户是否有同一天的机票
+			check = check_usr_start_date(&(u->b_ticket_list),p,f_head);
+			if(check == 0)
+			{
+				if(u->std.type == 1)      
+				{
+					//3.是儿童,半价
+					b_money = p->info.price / 2;
+				}
+				if(u->std.type == 2)
+				{
+					//4.是军人8折
+					b_money = p->info.price *0.8;
+				}
+				if(u->std.type == 0 && usr->std.Vip == 0)
+				{
+					//5.是成人购买者不是会员
+					b_money = p->info.price;
+				}
+				if(u->std.type == 0 && usr->std.Vip == 1)
+				{
+					//6.是成人购买者是会员
+					b_money = p->info.price*0.9;
+				}
+				//7.判断用户是否钱够
+				if(usr->std.memony > b_money)
+				{
+					//有住够的钱，扣钱
+					usr->std.memony -= b_money;
+					ret_ins = flight_delay_ins(usr,fd);
+					if(ret_ins == 1)
+					{
+						//8.为乘车着买了保险，实际花钱加100元，购买者扣100元
+						new->b_info.ins_flag = 1;
+						new->b_info.buy_price = b_money + 100;
+						usr->std.memony -= 100;
+
+					}
+					if(ret_ins == 0)
+					{
+						new->b_info.ins_flag = 0;
+						new->b_info.buy_price = b_money;
+					}
+					//购买票的人，乘坐这趟航班的人，乘坐的航班号,购买的实际价格、是否买了保险
+					strcpy(new->b_info.buy_usr,usr->std.name);
+					strcpy(new->b_info.take_usr,u->std.real_name);
+					strcpy(new->b_info.f_number,p->info.number);
+					//指针域赋值
+					new->next = &(u->b_ticket_list); //可以修改便于检查
+
+					buy_ticket *q = (&(u->b_ticket_list))->prev;
+					q->next = new;
+					new->prev =  q;
+					(&(u->b_ticket_list))->prev = new;
+					save_usr_data_file(usr);
+					save_usr_buy_flight_data(new);
+		
+					//购买票成功
+					printf("购票成功\n");
+					p->info.poll--;
+					return 0;
+				}
+				else
+				{
+					printf("余额不足,请充值\n");
+					return -1;
+				}
+			}
 		}
+		
 	}
-	printf("NO find number messtion\n");
+
+	printf("需要乘坐的乘客不存在或者没有实名制\n");
+		
 	return 0;
 }
 
-int buy_flight_meun(regin *usr,flight *f_head,int fd)
+int buy_flight_fun(regin *r_head,regin *usr,flight *f_head,int fd)               //购买机票
+{
+	if(usr->std.real_name_flag == 1)
+	{
+		char buy_buff[20];
+		show_all_flight_data(f_head);
+		printf("Place inter buy number:");
+		scanf("%s",buy_buff);
+		flight *p = f_head->next;
+		for(;p != f_head;p = p ->next)
+		{
+			//判断是否有这趟航班
+			if(strcmp(p->info.number,buy_buff) == 0)
+			{
+				//判断是否还有余票
+				if(p->info.poll > 0)
+				{
+					add_buy_ticket_tail(r_head,usr,&(usr->b_ticket_list),p,f_head,fd);
+					return 0;
+				}
+				else
+				{
+					printf("没有余票了\n");
+					return -2;
+				}	
+			}
+		}
+		printf("NO find number messtion\n");
+	}
+	else
+	{
+		printf("您还没有实名\n");
+		return -1;
+	}
+}
+
+int buy_flight_meun(regin *r_head,regin *usr,flight *f_head,int fd)
 {
 	//显示全部机票信息、条件查询：目的地、班期、价格、起飞时间，购买
 	int x,y;
@@ -788,7 +1057,7 @@ int buy_flight_meun(regin *usr,flight *f_head,int fd)
         {
         	if(y < 300)
 			{
-				buy_flight_fun(usr,f_head,fd);
+				buy_flight_fun(r_head,usr,f_head,fd);
 			}
 			if(y > 300)
 			{
@@ -860,24 +1129,24 @@ void  show_all_per_order(regin *usr,flight *f_head)
 {
 	buy_ticket *b_head =(buy_ticket *)&(usr->b_ticket_list);
 	buy_ticket *p = b_head->next;
-	flight *q = f_head->next;
 
 	printf("===========================================================================\n");
-	printf("航班号\t出发地\t目的地\t  班期\t   机型   起飞时间\t票价\t余票\t已支付\n");
+	printf("航班号\t出发地\t目的地\t  班期\t   机型   起飞时间\t票价\t保险\t已支付\n");
 	for(;p != b_head;p = p ->next)
 	{
-		for(;q != f_head;q = q -> next)
+		flight *q = f_head->next;
+		for(q;q != f_head;q = q -> next)
 		{
 			if(strcmp(p->b_info.f_number,q->info.number) == 0)
 			{
-				printf(" %s\t %s\t %s\t%s   %s\t  %s  \t%d\t%d\t %d\n",q->info.number,
+				printf(" %s\t %s\t %s\t%s   %s\t  %s  \t%d\t  %d\t%d\n",q->info.number,
 											q->info.staddress,
 											q->info.arraddress,
 											q->info.date,
 											q->info.type,
 											q->info.stime,
 											q->info.price,
-											q->info.poll,
+											p->b_info.ins_flag,
 											p->b_info.buy_price);
 			}
 		}
@@ -934,13 +1203,13 @@ int recharge(regin *usr)                //充值
 	if(rc_money >= 3000)
 	{
 		usr->std.Vip = 1;
-		usr->std.memony = rc_money;
+		usr->std.memony += rc_money;
 		save_usr_data_file(usr);
 		return 0;
 	}	
 	else
 	{
-		usr->std.memony = rc_money;
+		usr->std.memony += rc_money;
 		save_usr_data_file(usr);
 		return 0;
 	}
@@ -1020,7 +1289,7 @@ int per_main_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id 
         {
         	if(x < 512 && y < 300)
         	{
-        		buy_flight_meun(usr,f_head,fd);         //机票数据查询购买
+        		buy_flight_meun(r_head,usr,f_head,fd);         //机票数据查询购买
         	}
         	if(x > 512 && y < 300)
         	{
@@ -1232,6 +1501,7 @@ int main(int argc, char const *argv[])
 
 	//2.初始化老用户、飞机票数据
 	init_old_usr_data(r_head); //用户
+	init_buy_ticket_date(r_head,&(r_head->b_ticket_list));//购买的飞机
 	init_flight_data(f_head);//机票
 	init_read_id_data(i_head);//真实身份
 
