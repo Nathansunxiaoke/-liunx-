@@ -1153,7 +1153,135 @@ void  show_all_per_order(regin *usr,flight *f_head)
 	}
 }
 
-int per_order_meue(regin *usr,flight *f_head,int fd)
+
+int  back_monoy(regin *r_head,buy_ticket *p)
+{
+	char file_name[40] = {0};
+	regin *u = r_head->next;
+	for(u;u != r_head;u = u->next)
+	{
+		//找到购买的用户
+		if(strcmp(p->b_info.buy_usr,u->std.name) == 0)
+		{
+			if(u->std.Vip == 1)
+			{
+				//2会员不需要手续费
+				u->std.memony += p->b_info.buy_price;
+			}
+			if(u->std.Vip == 0)
+			{
+				//2.不是会员收购买票时的10%的手续费
+				u->std.memony += (p->b_info.buy_price * 0.9);
+			}
+		}
+	}
+	//3.删除文件信息
+	sprintf(file_name,"rm ./data/buy_ticket_data/%s_%s.txt",p->b_info.take_usr,p->b_info.f_number);
+	system(file_name);
+	return 0;
+}
+
+void save_flight_data(flight *f)
+{
+	FILE *fp = NULL;
+	char file_name[40] = {0};
+	char file_info[100] = {0};
+	sprintf(file_name,"./data/flight_data/%s.txt",f->info.number);
+	fp = fopen(file_name,"w");
+	if(fp == NULL)
+	{
+		perror("fopen error");
+	}
+	sprintf(file_info,"%s,%s,%s,%s,%s,%s,%d,%d,",f->info.number,
+												f->info.staddress,
+												f->info.arraddress,
+												f->info.date,
+												f->info.type,
+												f->info.stime,
+												f->info.price,
+												f->info.poll);
+	fwrite(file_info,sizeof(file_info),1,fp);
+	fclose(fp);
+}
+
+void add_flight_poll(flight *f_head,buy_ticket *p)
+{
+	flight *f = f_head->next;
+	for(;f != f_head;f = f->next)
+	{
+		if(strcmp(f->info.number,p->b_info.f_number) == 0)
+		{
+			//1.找到需要增加余票的航班
+			f->info.poll++;
+			//2.航班数据保存
+			save_flight_data(f);
+		}
+	}
+}
+
+int back_ticket(regin *r_head,regin *usr,flight *f_head)
+{
+	buy_ticket *b_head =(buy_ticket *) &(usr->b_ticket_list);
+	//1.显示用户的订单
+	show_all_per_order(usr,f_head);
+	char ticket_number[10];
+	printf("请输入您想要退的票:");
+	scanf("%s",ticket_number);
+	buy_ticket *q = b_head;
+	buy_ticket *p =  b_head->next;
+	for(q,p;p != b_head;q = p,p = p->next)
+	{
+		//2.找到需要退票的航班
+		if(strcmp(p->b_info.f_number,ticket_number) == 0)
+		{
+			//3.退钱
+			back_monoy(r_head,p);
+			//5.该航班的余票加一
+			add_flight_poll(f_head,p);
+			//4.释放该节点
+			q->next = p->next;
+			p->next->prev = q;
+			free(p);
+		}
+	}
+
+	printf("没有该订单\n");
+	return -1;
+}
+
+int change_ticket(regin *r_head,regin *usr,flight *f_head,int fd)
+{
+	buy_ticket *b_head =(buy_ticket *) &(usr->b_ticket_list);
+	//1.显示用户的订单
+	show_all_per_order(usr,f_head);
+	char ticket_number[10];
+	printf("请输入您想要改签的票:");
+	scanf("%s",ticket_number);
+	buy_ticket *q = b_head;
+	buy_ticket *p =  b_head->next;
+	for(q,p;p != b_head;q = p,p = p->next)
+	{
+		//2.找到需要改签的航班
+		if(strcmp(p->b_info.f_number,ticket_number) == 0)
+		{
+			//3.退钱
+			back_monoy(r_head,p);
+			//5.该航班的余票加一
+			add_flight_poll(f_head,p);
+			//4.释放该节点
+			q->next = p->next;
+			p->next->prev = q;
+			free(p);
+			//4.调用买票接口
+			buy_flight_meun(r_head,usr,f_head,fd);         //机票数据查询购买
+		}
+	}
+
+	printf("没有该订单\n");
+	return -1;
+}
+
+int per_order_meue(regin *r_head,regin *usr,flight *f_head,int fd)
 {
 	int x,y;
 	struct input_event buff;
@@ -1174,15 +1302,18 @@ int per_order_meue(regin *usr,flight *f_head,int fd)
 		{
 			if(y < 150)
 			{
+				//1.显示用户的全部订单
 				show_all_per_order(usr,f_head);
 			}
 			if(y > 150 && y < 300)
 			{
-
+				//2.退票
+				back_ticket(r_head,usr,f_head);
 			}
 			if(y > 300 && y < 450)
 			{
-				
+				//3.改签
+				change_ticket(r_head,usr,f_head,fd);
 			}
 			if(y > 450)        //返回
 			{
@@ -1244,7 +1375,7 @@ int per_info_meun(regin *usr,regin *r_head,login *l_head,flight *f_head,real_id 
         	}
         	if(x < 512 && y > 200 && y < 400)         //我的订单
         	{
-				per_order_meue(usr,f_head,fd);
+				per_order_meue(r_head,usr,f_head,fd);
         	}
         	if(x < 512 && y > 400)                   //修改个人信息
         	{
